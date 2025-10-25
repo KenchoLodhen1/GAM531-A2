@@ -8,6 +8,7 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 public class Game : GameWindow
 {
     private int _vao, _vbo, _ebo, _shaderProgram;
+    private float _angle = 0f;
 
     private readonly float[] _vertices =
     {
@@ -22,9 +23,10 @@ public class Game : GameWindow
     private readonly string _vertexShaderSource = @"
     #version 330 core
     layout (location = 0) in vec2 aPos;
+    uniform mat4 model;
     void main()
     {
-        gl_Position = vec4(aPos, 0.0, 1.0);
+        gl_Position = model * vec4(aPos, 0.0, 1.0);
     }";
 
     private readonly string _fragmentShaderSource = @"
@@ -46,16 +48,17 @@ public class Game : GameWindow
         int vs = GL.CreateShader(ShaderType.VertexShader);
         GL.ShaderSource(vs, _vertexShaderSource);
         GL.CompileShader(vs);
+        CheckShaderCompileStatus(vs, "VERTEX");
 
         int fs = GL.CreateShader(ShaderType.FragmentShader);
         GL.ShaderSource(fs, _fragmentShaderSource);
         GL.CompileShader(fs);
+        CheckShaderCompileStatus(fs, "FRAGMENT");
 
         _shaderProgram = GL.CreateProgram();
         GL.AttachShader(_shaderProgram, vs);
         GL.AttachShader(_shaderProgram, fs);
         GL.LinkProgram(_shaderProgram);
-
         GL.DeleteShader(vs);
         GL.DeleteShader(fs);
 
@@ -81,8 +84,18 @@ public class Game : GameWindow
     {
         base.OnRenderFrame(args);
         GL.Clear(ClearBufferMask.ColorBufferBit);
-
         GL.UseProgram(_shaderProgram);
+
+        _angle += (float)args.Time * 45f;
+        Matrix4 model = Matrix4.Identity;
+        Matrix4 scale = Matrix4.CreateScale(1.2f, 0.8f, 1.0f);
+        Matrix4 rotation = Matrix4.CreateRotationZ(MathHelper.DegreesToRadians(_angle));
+        Matrix4 translation = Matrix4.CreateTranslation(0.5f, 0.0f, 0.0f);
+        model = scale * rotation * translation;
+
+        int modelLoc = GL.GetUniformLocation(_shaderProgram, "model");
+        GL.UniformMatrix4(modelLoc, false, ref model);
+
         int colorLoc = GL.GetUniformLocation(_shaderProgram, "uColor");
         GL.Uniform3(colorLoc, new Vector3(0.0f, 0.8f, 0.7f));
 
@@ -112,5 +125,15 @@ public class Game : GameWindow
         GL.DeleteBuffer(_vbo);
         GL.DeleteVertexArray(_vao);
         GL.DeleteProgram(_shaderProgram);
+    }
+
+    private void CheckShaderCompileStatus(int shader, string type)
+    {
+        GL.GetShader(shader, ShaderParameter.CompileStatus, out int success);
+        if (success == 0)
+        {
+            string info = GL.GetShaderInfoLog(shader);
+            Console.WriteLine($"{type} SHADER COMPILATION ERROR:\n{info}");
+        }
     }
 }
